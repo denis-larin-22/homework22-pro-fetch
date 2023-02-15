@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script>
+        class StarWarsApi {
+            films = []
+
+            async getResourse(url) {
+                const response = await fetch(url);
+                const { result, results } = await response.json();
+
+                return result ?? results;
+            }
+
+            async getFilms() {
+                const filmsList = await this.getResourse('https://www.swapi.tech/api/films');
+                return this.films = filmsList.map(x => x.properties);
+            }
+
+            getFilmDeteils(nameFilm) {
+                const film = this.films.find(({ title }) => title === nameFilm);
+
+                if (!film) {
+                    throw new Error('Not found!');
+                }
+
+                return film;
+            }
+
+            async getAllStarships() {
+                const linkArray = ['https://www.swapi.tech/api/starships'];
+
+                async function getAllLinks(url) {
+                    const { next } = await fetch(url).then(x => x.json())
+                    if (next) {
+                        linkArray.push(next);
+                        await getAllLinks(next);
+                    } else {
+                        return linkArray;
+                    }
+                }
+
+                await getAllLinks(linkArray.at(0))
+
+                const resolveList = await this.#getPromisesResult(linkArray);
+                const starshipsLinkList = resolveList.flat().map(x => x.url);
+
+                const resolveStarshipList = await this.#getPromisesResult(starshipsLinkList);
+                return resolveStarshipList.map(x => x.properties);
+            }
+
+            async #getPromisesResult(linkArray) {
+                const promiseList = linkArray.map(x => this.getResourse(x));
+                return await Promise.all(promiseList);
+            }
+
+            async getStarshipByName(name) {
+                if (localStorage.getItem(name)) {
+                    return JSON.parse(localStorage.getItem(name));
+                }
+
+                const result = [];
+                const filmList = await this.getFilms();
+                const starshipsList = await this.getAllStarships();
+
+                const starshipsLink = starshipsList.find(x => x.name === name).url;
+
+                for (const item of filmList) {
+                    let condition = item.starships.some(x => x === starshipsLink);
+
+                    if (condition) result.push(item.title);
+                }
+
+                localStorage.setItem(name, JSON.stringify(result));
+
+                return result;
+            }
+        }
+
+
+
+        const swapi = new StarWarsApi;
+
+        swapi.getAllStarships().then(console.log)
+        swapi.getStarshipByName('CR90 corvette')
+            .then(console.log)
+        swapi.getStarshipByName('Calamari Cruiser')
+            .then(console.log)
+        swapi.getStarshipByName('Naboo star skiff')
+            .then(console.log)
+        swapi.getStarshipByName('CR90 corvette')
+            .then(console.log)
+    </script>
+</body>
+
+</html>
